@@ -1,3 +1,6 @@
+from argparse import OPTIONAL
+from token import OP
+
 import cv2
 import urllib.request
 import os
@@ -71,7 +74,7 @@ def draw_custom_landmarks(image, face_result, hand_result):
                 cv2.circle(image, (cx, cy), 1, (255, 255, 255), -1)
 
 
-capture = cv2.VideoCapture(1)
+capture = cv2.VideoCapture(0)
 
 with vision.FaceLandmarker.create_from_options(
     face_options
