@@ -8,94 +8,72 @@ from mediapipe.tasks.python import vision
 
 DATA_PATH = os.path.join("data")
 actions = np.array(["67", "idle"])
-no_sequences = 30
-sequence_length = 30
+no_sequences = 20
+sequence_length = 60
 
-HAND_CONNECTIONS = [
-    (0, 1),
-    (1, 2),
-    (2, 3),
-    (3, 4),  # Pouce
-    (0, 5),
-    (5, 6),
-    (6, 7),
-    (7, 8),  # Index
-    (5, 9),
+
+POSE_CONNECTIONS = [
+    # Visage
+    (0, 1), (1, 2), (2, 3), (3, 7),
+    (0, 4), (4, 5), (5, 6), (6, 8),
     (9, 10),
-    (10, 11),
-    (11, 12),  # Majeur
-    (9, 13),
-    (13, 14),
-    (14, 15),
-    (15, 16),  # Annulaire
-    (13, 17),
-    (0, 17),
-    (17, 18),
-    (18, 19),
-    (19, 20),  # Auriculaire
+    # Tronc
+    (11, 12), (11, 23), (12, 24), (23, 24),
+    # Bras gauche
+    (11, 13), (13, 15), (15, 17), (15, 19), (15, 21), (17, 19),
+    # Bras droit
+    (12, 14), (14, 16), (16, 18), (16, 20), (16, 22), (18, 20),
+    # Jambe gauche
+    (23, 25), (25, 27), (27, 29), (27, 31), (29, 31),
+    # Jambe droite
+    (24, 26), (26, 28), (28, 30), (28, 32), (30, 32)
 ]
 
 
-def draw_custom_landmarks(image, face_result, hand_result):
+def draw_pose_landmarks(image, pose_result):
     """Dessine manuellement les points et les lignes avec OpenCV"""
     h, w, _ = image.shape
 
-    if hand_result.hand_landmarks:
-        for hand_landmarks in hand_result.hand_landmarks:
-            pixel_pts = [(int(lm.x * w), int(lm.y * h)) for lm in hand_landmarks]
+    if pose_result and pose_result.pose_landmarks:
+        # Dans la nouvelle API, pose_landmarks est une liste de listes (une par personne)
+        for pose_landmarks in pose_result.pose_landmarks:
+            pixel_pts = [(int(lm.x * w), int(lm.y * h)) for lm in pose_landmarks]
 
-            for connection in HAND_CONNECTIONS:
+            for connection in POSE_CONNECTIONS:
                 pt1, pt2 = pixel_pts[connection[0]], pixel_pts[connection[1]]
                 cv2.line(image, pt1, pt2, (0, 255, 0), 2)
 
             for pt in pixel_pts:
                 cv2.circle(image, pt, 4, (0, 0, 255), -1)
 
-    if face_result.face_landmarks:
-        for face_landmarks in face_result.face_landmarks:
-            for lm in face_landmarks:
-                cx, cy = int(lm.x * w), int(lm.y * h)
-                cv2.circle(image, (cx, cy), 1, (255, 255, 255), -1)
 
-
-def extract_landmarks(hand_result):
-    lh = np.zeros(21 * 3)
-    rh = np.zeros(21 * 3)
-
-    if hand_result.hand_landmarks:
-        for i, res in enumerate(hand_result.hand_landmarks):
-            label = hand_result.handedness[i][0].category_name
-            coords = np.array([[lm.x, lm.y, lm.z] for lm in res]).flatten()
-            if label == "Left":
-                lh = coords
-            else:
-                rh = coords
-    return np.concatenate([lh, rh])
+def extract_pose_landmarks(pose_result):
+    """Extrait les 33 points du corps (x, y, z, visibilité)"""
+    if pose_result and pose_result.pose_landmarks:
+        res = pose_result.pose_landmarks[0]
+        # La nouvelle API inclut la propriété 'visibility' pour chaque point
+        pose = np.array([[lm.x, lm.y, lm.z, lm.visibility] for lm in res]).flatten()
+        return pose
+    else:
+        return np.zeros(33 * 4)
 
 
 for action in actions:
     for sequence in range(no_sequences):
         os.makedirs(os.path.join(DATA_PATH, action, str(sequence)), exist_ok=True)
 
-base_options_face = python.BaseOptions(model_asset_path="face_landmarker.task")
-base_options_hand = python.BaseOptions(model_asset_path="hand_landmarker.task")
+base_options = python.BaseOptions(model_asset_path="pose_landmarker_lite.task")
 
-face_options = vision.FaceLandmarkerOptions(
-    base_options=base_options_face,
+pose_options = vision.PoseLandmarkerOptions(
+    base_options=base_options,
     running_mode=vision.RunningMode.VIDEO,
-    num_faces=1
+    num_poses=1
 )
 
-hand_options = vision.HandLandmarkerOptions(
-    base_options=base_options_hand,
-    running_mode=vision.RunningMode.VIDEO,
-    num_hands=2
-)
+pose_landmarker = vision.PoseLandmarker.create_from_options(pose_options)
 
-face_landmarker = vision.FaceLandmarker.create_from_options(face_options)
-hand_landmarker = vision.HandLandmarker.create_from_options(hand_options)
 
-capture = cv2.VideoCapture(0)
+capture = cv2.VideoCapture(1)
 
 for action in actions:
     sequence = 0
@@ -113,6 +91,7 @@ for action in actions:
             break
 
         if key & 0xFF == ord('s'):
+            # Compte à rebours
             for i in range(2, 0, -1):
                 ret, frame = capture.read()
                 cv2.putText(frame, f"DEBUT DANS {i}...", (150, 250),
@@ -127,21 +106,25 @@ for action in actions:
                     image_format=mp.ImageFormat.SRGB,
                     data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
                 )
-                timestamp = int(time.time() * 1000)
 
-                h_res = hand_landmarker.detect_for_video(mp_image, timestamp)
-                draw_custom_landmarks(frame, None, h_res)
-                keypoints = extract_landmarks(h_res)
+                timestamp = int(time.time() * 1000) if frame_num == 0 else timestamp + 33
+
+                p_res = pose_landmarker.detect_for_video(mp_image, timestamp)
+
+                draw_pose_landmarks(frame, p_res)
+                keypoints = extract_pose_landmarks(p_res)
 
                 npy_path = os.path.join(DATA_PATH, action, str(sequence), str(frame_num))
                 np.save(npy_path, keypoints)
 
-                cv2.putText(frame, f"ENREGISTREMENT: {action} ({frame_num})", (15, 30),
+                cv2.putText(frame, f"ENREGISTREMENT: {action} ({frame_num}/{sequence_length})", (15, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 cv2.imshow("Data Collection", frame)
-                cv2.waitKey(1)
+
+                cv2.waitKey(33)
 
             sequence += 1
 
 capture.release()
 cv2.destroyAllWindows()
+print("Collection terminée")
