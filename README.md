@@ -35,7 +35,26 @@ Each sample is saved as a NumPy file in:
 - `sequence_length = 60`
 - Feature vector per frame: 132 values (`33 × (x, y, z, visibility)`)
 
+## Requirements
+
+Install dependencies:
+
+- Python 3.9+
+- `numpy`
+- `opencv-python`
+- `mediapipe`
+- `tensorflow`
+- `scikit-learn`
+
 ## Workflow
+
+You can directly use the pre-trained model and run: 
+
+```bash
+python rec.py
+```
+
+But if you wish to collect your own data :
 
 ### 1) Collect data
 

@@ -100,7 +100,7 @@ with vision.PoseLandmarker.create_from_options(
         sequence.append(pose)
         sequence = sequence[-sequence_length:]
 
-        if len(sequence) == sequence_length and frame_counter % 60 == 0:  # Inference tous les 10 frames pour la perf
+        if len(sequence) == sequence_length and frame_counter % 60 == 0:  # Inference tous les 60 frames pour la perf
             res = model(np.expand_dims(sequence, axis=0), training=False)[0].numpy()
 
             current_action = actions[np.argmax(res)]
