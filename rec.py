@@ -77,7 +77,7 @@ frame_counter = 0  # pour la performance
 current_action = "Mouvement inconnu"
 current_prob = 0.0
 
-model = load_model('model_67.keras')
+model = load_model('models/model_67.keras')
 print("Modèle chargé")
 
 with vision.PoseLandmarker.create_from_options(

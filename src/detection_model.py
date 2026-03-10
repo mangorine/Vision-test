@@ -36,7 +36,7 @@ log_dir = os.path.join("logs")
 tensorboard_callback = TensorBoard(log_dir=log_dir)
 
 checkpoint_callback = ModelCheckpoint(
-    filepath='model_67.keras',
+    filepath='models/model_67.keras',
     monitor='loss',
     save_best_only=True,
     verbose=1
