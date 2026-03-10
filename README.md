@@ -1,4 +1,4 @@
-# Vision-test
+# Custom movement detection
 
 Real-time human pose action recognition using **MediaPipe Pose Landmarker** + **TensorFlow LSTM**.
 
